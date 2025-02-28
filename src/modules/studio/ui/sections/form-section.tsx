@@ -1,12 +1,20 @@
 "use client";
 
-import { CopyCheckIcon, CopyIcon, MoreVertical, TrashIcon } from "lucide-react";
+import {
+  CopyCheckIcon,
+  CopyIcon,
+  Globe2Icon,
+  LockIcon,
+  MoreVertical,
+  TrashIcon,
+} from "lucide-react";
 import { z } from "zod";
 import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { ErrorBoundary } from "react-error-boundary";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
@@ -36,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { VideoPlayer } from "@/modules/videos/ui/components/video-player";
+import { snakeCaseToTitle } from "@/lib/utils";
 
 interface FormSectionProps {
   videoId: string;
@@ -56,6 +65,7 @@ const FormSectionSkeleton = () => {
 };
 
 const FormSectionSuspense = ({ videoId }: FormSectionProps) => {
+  const router = useRouter();
   const utils = trpc.useUtils();
   const [video] = trpc.studio.getOne.useSuspenseQuery({ id: videoId });
   const [categories] = trpc.categories.getMany.useSuspenseQuery();
@@ -65,6 +75,17 @@ const FormSectionSuspense = ({ videoId }: FormSectionProps) => {
       utils.studio.getMany.invalidate();
       utils.studio.getOne.invalidate({ id: videoId });
       toast.success("Video updated");
+    },
+    onError: () => {
+      toast.error("Something went wrong");
+    },
+  });
+
+  const remove = trpc.videos.remove.useMutation({
+    onSuccess: () => {
+      utils.studio.getMany.invalidate();
+      toast.success("Video removed");
+      router.push("/studio");
     },
     onError: () => {
       toast.error("Something went wrong");
@@ -117,7 +138,9 @@ const FormSectionSuspense = ({ videoId }: FormSectionProps) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => remove.mutate({ id: videoId })}
+                >
                   <TrashIcon className="size-4 mr-2" />
                   Delete
                 </DropdownMenuItem>
@@ -222,11 +245,64 @@ const FormSectionSuspense = ({ videoId }: FormSectionProps) => {
                   </div>
                 </div>
 
-                <div>
-                    hello
+                <div className="flex justify-between items-center">
+                  <div className="flex flex-col gap-y-1">
+                    <p className="text-muted-foreground text-xs">
+                      Video status
+                    </p>
+                    <p className="text-sm">
+                      {snakeCaseToTitle(video.muxStatus || "preparing")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <div className="flex flex-col gap-y-1">
+                    <p className="text-muted-foreground text-xs">
+                      Subtitles status
+                    </p>
+                    <p className="text-sm">
+                      {snakeCaseToTitle(video.muxTrackStatus || "no_subtitles")}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
+
+            <FormField
+              control={form.control}
+              name="visibility"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Visibility</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value ?? undefined}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select visibility" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="public">
+                        <div className="flex items-center">
+                          <Globe2Icon className="size-4 mr-2" />
+                          Public
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="private">
+                        <div className="flex items-center">
+                          <LockIcon className="size-4 mr-2" />
+                          Private
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         </div>
       </form>
